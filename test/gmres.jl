@@ -22,7 +22,7 @@ file_name = "sphere02"
 nu = 1.443e-5                    # (m^2/s) kinematic viscosity
 Re = 8800                        # Reynolds number V*d/nu
 # R = 6.35e-3/2                    # (m) radius of sphere
-# magVinf = 20                     # (m/s) freestream velocity   
+# magVinf = 20                     # (m/s) freestream velocity
 R = 1
 magVinf = Re*nu/(2*R)
 
@@ -31,7 +31,7 @@ P_max = [pi-P_min[1], 2*pi, 0]   # Upper bounds of (theta, phi, dummy)
 NDIVS = 1*[15, 30, 0]            # Number of divisions (cells) of (theta, phi, dummy)
 loop_dim = 2                     # Coordinate to loop (1==theta)
 
-# Generates parametric (theta, phi) grid 
+# Generates parametric (theta, phi) grid
 grid = pnl.gt.Grid(P_min, P_max, NDIVS, loop_dim)
 
 # Transforms the grid into a spherical cartesian space
@@ -58,7 +58,7 @@ pnl.gt.add_field(body.grid, "nodeindex", "scalar",
 # Freestream at every control point
 Vinf = magVinf*[1.0,0,0]
 Vinfs = [Vinf for i in 1:body.ncells]
-pnl.solve(body, Vinfs)
+pnl.solve(body, Vinfs; algorithm=pnl.native)
 
 # Adds surface velocity field
 CPs = [pnl.get_controlpoint(body, i) for i in 1:body.ncells]

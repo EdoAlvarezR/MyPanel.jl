@@ -75,6 +75,9 @@ const FIELDS = Dict(
 # Discretization parameter type
 const ndivstype = Union{Float64, gt.multidisctype, Nothing}
 
+# Enum's to choose solver
+@enum SolverAlgorithm native=1 gmres=2
+
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["solver", "abstractbody", "utils"]
   include("MyPanel_"*header_name*".jl")

@@ -56,15 +56,22 @@ struct NonLiftingBody <: AbstractBody
 end
 
 
-function solve(self::NonLiftingBody, Vinfs::Array{Array{T,1},1}; verbose=true) where {T<:RType}
+function solve(self::NonLiftingBody, Vinfs::Array{Array{T,1},1};
+    algorithm::SolverAlgorithm = gmres,
+    verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
 
-  #   sigma = self._G\lambda
-  sigma = IS.gmres(self._G, lambda; verbose=verbose)
+  if Int(algorithm) == 1
+    sigma = self._G\lambda
+  elseif Int(algorithm) == 2
+    sigma = IS.gmres(self._G, lambda; verbose=verbose)
+  else
+    throw("algorithm not implemented.")
+  end
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "sigma", sigma)
@@ -151,14 +158,21 @@ end
 
 
 function solve(self::NonLiftingBodyDoublet, Vinfs::Array{Array{T,1},1};
-                                                        verbose=true) where {T<:RType}
+                algorithm::SolverAlgorithm = gmres,
+                verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
-#   mu = self._G\lambda
-  mu = IS.gmres(self._G, lambda; verbose=verbose)
+
+  if Int(algorithm) == 1
+    mu = self._G\lambda
+  elseif Int(algorithm) == 2
+    mu = IS.gmres(self._G, lambda; verbose=verbose)
+  else
+    throw("algorithm not implemented.")
+  end
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "mu", mu)
@@ -247,14 +261,21 @@ end
 
 
 function solve(self::NonLiftingBodyVRing, Vinfs::Array{Array{T,1},1};
-                                                        verbose=true) where {T<:RType}
+                algorithm::SolverAlgorithm = gmres,
+                verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
-#   Gamma = self._G\lambda
-  Gamma = IS.gmres(self._G, lambda; verbose=verbose)
+
+  if algorithm == native
+    Gamma = self._G\lambda
+  elseif algorithm == gmres
+    Gamma = IS.gmres(self._G, lambda; verbose=verbose)
+  else
+    throw("algorithm not implemented.")
+  end
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "Gamma", Gamma)

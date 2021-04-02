@@ -11,10 +11,11 @@ module MyPanel
 
 # ------------ GENERIC MODULES -------------------------------------------------
 import Dierckx
-import PyPlot; const plt = PyPlot
 import ForwardDiff
-using Statistics
+import IterativeSolvers; const IS = IterativeSolvers
 using LinearAlgebra
+import PyPlot; const plt = PyPlot
+using Statistics
 
 # ------------ FLOW LAB MODULES ------------------------------------------------
 

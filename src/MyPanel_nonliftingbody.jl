@@ -56,13 +56,15 @@ struct NonLiftingBody <: AbstractBody
 end
 
 
-function solve(self::NonLiftingBody, Vinfs::Array{Array{T,1},1}) where {T<:RType}
+function solve(self::NonLiftingBody, Vinfs::Array{Array{T,1},1}; verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
-  sigma = self._G\lambda
+
+  #   sigma = self._G\lambda
+  sigma = IS.gmres(self._G, lambda; verbose=verbose)
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "sigma", sigma)
@@ -148,14 +150,15 @@ struct NonLiftingBodyDoublet <: AbstractBody
 end
 
 
-function solve(self::NonLiftingBodyDoublet, Vinfs::Array{Array{T,1},1}
-                                                              ) where {T<:RType}
+function solve(self::NonLiftingBodyDoublet, Vinfs::Array{Array{T,1},1};
+                                                        verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
-  mu = self._G\lambda
+#   mu = self._G\lambda
+  mu = IS.gmres(self._G, lambda; verbose=verbose)
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "mu", mu)
@@ -243,14 +246,15 @@ struct NonLiftingBodyVRing <: AbstractBody
 end
 
 
-function solve(self::NonLiftingBodyVRing, Vinfs::Array{Array{T,1},1}
-                                                              ) where {T<:RType}
+function solve(self::NonLiftingBodyVRing, Vinfs::Array{Array{T,1},1};
+                                                        verbose=true) where {T<:RType}
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
-  Gamma = self._G\lambda
+#   Gamma = self._G\lambda
+  Gamma = IS.gmres(self._G, lambda; verbose=verbose)
 
   add_field(self, "Vinf", Vinfs)
   add_field(self, "Gamma", Gamma)

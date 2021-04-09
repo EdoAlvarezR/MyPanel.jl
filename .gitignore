@@ -13,3 +13,7 @@ temp*
 # Jupyter notebook temps
 .ipynb_checkpoints
 
+# report images and documents
+report/figures/*.png
+report/*.pdf
+report/figures/*.pdf

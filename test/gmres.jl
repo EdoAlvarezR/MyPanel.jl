@@ -172,6 +172,7 @@ function panel_sweep()
     # plot(numpanels, times[:,3], label="Conjugate gradient")
     xlabel("Number of panels")
     ylabel("Minimum time in benchmarking [μs]")
+    legend()
 
     figure()
     plot(numpanels, memory[:,1] * 1e-6, label="Native solver")
@@ -179,4 +180,5 @@ function panel_sweep()
     # plot(numpanels, memory[:,3], label="Conjugate gradient")
     xlabel("Number of panels")
     ylabel("Memory in benchmarking [Mb]")
+    legend()
 end

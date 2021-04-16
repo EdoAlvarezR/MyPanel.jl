@@ -29,8 +29,10 @@ ARGUMENTS:
 `benchmarking::Bool` - either runs benchmarking if set to true, 
     or if set to false runs the example and pulls up the 
     visualization in Paraview.
-`algorithm::String` - for now, either pnl.native or pnl.gmres 
-    will work.
+`algorithm::String`:
+        - "all" runs all algorithms (currently native solve and gmres)
+        - "native" runs native linear solve
+        - "gmres" runs with GMRES
 
 Note: The benchmarking macro outputs a lot of useful information 
     including min/max/median time and estimated memory used, but only if the 
@@ -43,8 +45,9 @@ Note: The benchmarking macro outputs a lot of useful information
 """
 function benchmarking_sphere(; 
                             benchmarking=true, 
-                            algorithm=pnl.gmres)
-                            
+                            algorithm="all",
+                            panel_scale=3)
+
     # Parameters
     nu = 1.443e-5                    # (m^2/s) kinematic viscosity
     Re = 8800                        # Reynolds number V*d/nu
@@ -55,7 +58,7 @@ function benchmarking_sphere(;
 
     P_min = [0.15, 0, 0]             # Lower bounds of (theta, phi, dummy)
     P_max = [pi-P_min[1], 2*pi, 0]   # Upper bounds of (theta, phi, dummy)
-    NDIVS = 1*[15, 30, 0]            # Number of divisions (cells) of (theta, phi, dummy)
+    NDIVS = panel_scale*[5, 10, 0]            # Number of divisions (cells) of (theta, phi, dummy)
     loop_dim = 2                     # Coordinate to loop (1==theta)
 
     # Generates parametric (theta, phi) grid
@@ -85,15 +88,38 @@ function benchmarking_sphere(;
     # Freestream at every control point
     Vinf = magVinf*[1.0,0,0]
     Vinfs = [Vinf for i in 1:body.ncells]
-
+    
+    times = []
+    memory = []
     if benchmarking # run benchmarking and ignore vtks
-        if algorithm==pnl.native
-            println("Native linear solve:")
-            @benchmark pnl.solve(body, Vinfs; algorithm=pnl.native, verbose=false)
-        elseif algorithm==pnl.gmres
-            println("GMRES solver:")
-            @benchmark pnl.solve(body, Vinfs; algorithm=pnl.gmres, verbose=false)
+        if lowercase(algorithm)=="all"
+
+            # println("Native linear solve:")
+            t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.native, verbose=false)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+            # println("GMRES solver:")
+            t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+        elseif lowercase(algorithm)=="native"
+
+            # println("Native linear solve:")
+            t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.native, verbose=false)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+        elseif lowercase(algorithm)=="gmres"
+
+            # println("GMRES solver:")
+            t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
         end
+
+        return times, memory
     else # solve and run paraview
         pnl.solve(body, Vinfs; algorithm=algorithm, verbose=false)
 
@@ -125,4 +151,32 @@ function benchmarking_sphere(;
         strn = "$(joinpath(save_path, file_name)).vtk;$(file_name)_fdom.vtk;$(file_name)_CPs.vtk"
         run(`paraview --data=$strn`)
     end
+end
+
+function panel_sweep()
+
+    scales = 1:5 #3 gives default panels in original example (450 panels)
+    numpanels = 5*10*scales .^ 2 # ranges from 50 to 1250 panels
+    numalgorithms = 2 # change to 3 if conjugate gradient is implemented
+
+    times = Array{Float64}(undef, length(scales), numalgorithms) 
+    memory = Array{Float64}(undef, length(scales), numalgorithms) 
+    for scale in scales
+        println("$(numpanels[scale]) panels:")
+        times[scale, :], memory[scale,:] = benchmarking_sphere(panel_scale=scale)
+    end
+
+    figure()
+    plot(numpanels, times[:,1]*1e-6, label="Native solver")
+    plot(numpanels, times[:,2]*1e-6, label="GMRES")
+    # plot(numpanels, times[:,3], label="Conjugate gradient")
+    xlabel("Number of panels")
+    ylabel("Minimum time in benchmarking [μs]")
+
+    figure()
+    plot(numpanels, memory[:,1] * 1e-6, label="Native solver")
+    plot(numpanels, memory[:,2] * 1e-6, label="GMRES")
+    # plot(numpanels, memory[:,3], label="Conjugate gradient")
+    xlabel("Number of panels")
+    ylabel("Memory in benchmarking [Mb]")
 end

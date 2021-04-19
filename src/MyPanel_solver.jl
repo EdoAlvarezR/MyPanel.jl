@@ -60,7 +60,7 @@ function G_constant_source(nodes::Array{T1,2},
                         [nodes[:,ind] for ind in panels[j]], # Nodes in j-th panel
                         1.0,                               # Unitary strength,
                         CPs,                               # Targets
-                        view(G, :, j);                     # Velocity of j-th
+                        view(G, :, j);                     # Induced velocity of j-th
                                                            # panel on every CP
                         dot_with=normals                   # Normal of every CP
                       )
@@ -68,7 +68,6 @@ function G_constant_source(nodes::Array{T1,2},
 
   return G
 end
-
 
 """
 Returns the velocity induced by a panel of vertices `nodes` and constant
@@ -153,6 +152,76 @@ function Vconstant_source(nodes::Array{Array{T1,1},1}, strength::RType,
   end
 end
 
+"""
+Compact memory version of `Vconstant_source`. Returns the influence of `nodes` on the target control point.
+"""
+@inline function Vconstant_source_compact(nodes::Array{Array{T1,1},1}, strength::RType,
+                          target::Array{T2,1};
+                          dot_with=nothing
+                          ) where{T1<:RType, T2<:RType}
+    nn = size(nodes, 1)                      # Number of nodes
+
+    # Tangent, oblique, and normal vectors
+    t, o, n = gt._calc_unitvectors(nodes)
+
+    # Coordinate system defined by Hess & Smith
+    unitxi, uniteta, unitz = o, t, -n        # Unit vectors
+    O = nodes[1]                             # Origin
+    Oaxis = hcat(unitxi, uniteta, unitz)'    # Transformation matrix
+
+    # Converts nodes to H&S coordinate system
+    HSnodes = [Oaxis*(node-O) for node in nodes]
+
+    # only one target now
+    HSX = Oaxis*(target-O)
+    V = zeros(T2, 3)
+    dtheta = 2*pi
+
+    nR0 = 0
+
+    for i in 1:nn
+        xi, xj = HSnodes[i], HSnodes[i%nn + 1]
+
+        dij = norm(xj-xi)
+        ri = norm(HSX-xi)
+        rj = norm(HSX-xj)
+
+        #   println("ri,rj,dij=$ri,$rj,$dij")
+
+        Qij = log( (ri+rj+dij)/(ri+rj-dij + SMOOTH) )
+
+        Sij = (xj[2]-xi[2])/dij
+        Cij = (xj[1]-xi[1])/dij
+
+        siji = (xi[1]-HSX[1])*Cij + (xi[2]-HSX[2])*Sij
+        sijj = (xj[1]-HSX[1])*Cij + (xj[2]-HSX[2])*Sij
+        Rij = (HSX[1]-xi[1])*Sij - (HSX[2]-xi[2])*Cij
+
+        Jij = atan( Rij*abs(HSX[3])*( ri*sijj - rj*siji ) ,
+                    ri*rj*Rij^2 + HSX[3]^2*sijj*siji)
+
+        #  println("Rij,ri,rj,siji,sijj,HSX=$Rij,$ri,$rj,$siji,$sijj,$HSX")
+        #  println("Rij,ri,rj,siji,sijj,HSX,Sij,Cij=$Rij,$ri,$rj,$siji,$sijj,$HSX,$Sij,$Cij")
+
+        V[1] -= Sij*Qij
+        V[2] += Cij*Qij
+        V[3] -= Jij
+
+        dtheta *= Rij>=0
+        nR0 += Rij==0
+    end
+
+    V[3] += dtheta
+    V[3] *= sign(HSX[3])   # Isn't this sign already accounted for in atan2?
+    V[3] *= !(nR0>1)       # Singularity fix of any z position aligned with node
+
+    if dot_with != nothing
+        return dot(strength*(V[1]*unitxi + V[2]*uniteta + V[3]*unitz),
+                                                                    dot_with)
+    else
+        return strength*(V[1]*unitxi + V[2]*uniteta + V[3]*unitz)
+    end
+end
 
 """
 Calculates and returns the geometric matrix of a collection of constant-doublet

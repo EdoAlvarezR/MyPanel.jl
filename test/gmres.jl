@@ -22,29 +22,29 @@ file_name = "sphere02"
 """
     `benchmarking_gmres()`
 
-Runs the sphere example and benchmarks the solve method from 
-    MyPanel using the specified algorithm. 
+Runs the sphere example and benchmarks the solve method from
+    MyPanel using the specified algorithm.
 
 ARGUMENTS:
-`benchmarking::Bool` - either runs benchmarking if set to true, 
-    or if set to false runs the example and pulls up the 
+`benchmarking::Bool` - either runs benchmarking if set to true,
+    or if set to false runs the example and pulls up the
     visualization in Paraview.
-`algorithm::String` - for now, either pnl.native or pnl.gmres 
+`algorithm::String` - for now, either pnl.native or pnl.gmres
     will work.
 
-Note: The benchmarking macro outputs a lot of useful information 
-    including min/max/median time and estimated memory used, but only if the 
-    macro is the last thing to be called. Maybe there's a way around 
-    this? In the meantime, it means we can't benchmark both algorithms 
-    right after the other with one command. It requires two commands, 
-    whether in the REPL or in another function. I also am not able to 
-    just hardcode the function to run both; only the latter will show 
+Note: The benchmarking macro outputs a lot of useful information
+    including min/max/median time and estimated memory used, but only if the
+    macro is the last thing to be called. Maybe there's a way around
+    this? In the meantime, it means we can't benchmark both algorithms
+    right after the other with one command. It requires two commands,
+    whether in the REPL or in another function. I also am not able to
+    just hardcode the function to run both; only the latter will show
     up in the REPL.
 """
-function benchmarking_sphere(; 
-                            benchmarking=true, 
-                            algorithm=pnl.gmres)
-                            
+function benchmarking_sphere(;
+                            benchmarking=true,
+                            algorithm=pnl.gmres_bulky)
+
     # Parameters
     nu = 1.443e-5                    # (m^2/s) kinematic viscosity
     Re = 8800                        # Reynolds number V*d/nu
@@ -85,7 +85,6 @@ function benchmarking_sphere(;
     # Freestream at every control point
     Vinf = magVinf*[1.0,0,0]
     Vinfs = [Vinf for i in 1:body.ncells]
-
     if benchmarking # run benchmarking and ignore vtks
         if algorithm==pnl.native
             println("Native linear solve:")
@@ -126,3 +125,5 @@ function benchmarking_sphere(;
         run(`paraview --data=$strn`)
     end
 end
+
+benchmarking_sphere(;benchmarking=false, algorithm=pnl.gmres_agile)

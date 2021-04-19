@@ -76,7 +76,7 @@ const FIELDS = Dict(
 const ndivstype = Union{Float64, gt.multidisctype, Nothing}
 
 # Enum's to choose solver
-@enum SolverAlgorithm native=1 gmres_bulky=2 gmres_agile=3
+@enum SolverAlgorithm native=1 gmres_bulky=2 gmres_agile=3 cg=4
 
 # ------------ HEADERS ---------------------------------------------------------
 for header_name in ["solver", "abstractbody", "utils"]

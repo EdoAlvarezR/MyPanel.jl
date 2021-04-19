@@ -152,6 +152,9 @@ function solve(self::NonLiftingBody, Vinfs::Array{Array{T,1},1};
   if size(Vinfs,1) != self.ncells
     error("Invalid Vinfs; expected size $(self.ncells), got $(size(Vinfs,1))")
   end
+  if Int(algorithm) != 3
+    @assert self._G != nothing "For solvers other than gmres_agile, ::NonLiftingBody object must by constructed."
+  end
 
   lambda = [-dot(Vinfs[i], get_normal(self, i)) for i in 1:self.ncells]
 

@@ -103,7 +103,7 @@ function benchmarking_sphere(;
                 push!(memory, minimum(t).memory)
 
                 # println("GMRES solver:")
-                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres_bulky, verbose=false)
                 push!(times, minimum(t).time)
                 push!(memory, minimum(t).memory)
 
@@ -117,7 +117,7 @@ function benchmarking_sphere(;
             elseif lowercase(algorithm)=="gmres"
 
                 # println("GMRES solver:")
-                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres_bulky, verbose=false)
                 push!(times, minimum(t).time)
                 push!(memory, minimum(t).memory)
             end
@@ -130,7 +130,7 @@ function benchmarking_sphere(;
                 push!(memory, median(t).memory)
 
                 # println("GMRES solver:")
-                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres_bulky, verbose=false)
                 push!(times, median(t).time)
                 push!(memory, median(t).memory)
 
@@ -144,7 +144,7 @@ function benchmarking_sphere(;
             elseif lowercase(algorithm)=="gmres"
 
                 # println("GMRES solver:")
-                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres, verbose=false)
+                t = @benchmark pnl.solve($body, $Vinfs; algorithm=pnl.gmres_bulky, verbose=false)
                 push!(times, median(t).time)
                 push!(memory, median(t).memory)
             end
@@ -182,6 +182,143 @@ function benchmarking_sphere(;
         gt.generateVTK(file_name*"_CPs", CPs; point_data=point_data, path=save_path)
         strn = "$(joinpath(save_path, file_name)).vtk;$(file_name)_fdom.vtk;$(file_name)_CPs.vtk"
         run(`paraview --data=$strn`)
+    end
+end
+
+"""
+    Same as above, now with implicit GMRES which requires benchmarking more of the example.
+"""
+function benchmarking_sphere2(;
+                            benchmarking=true,
+                            algorithm="all",
+                            panel_scale=3,
+                            minimum=false)
+
+    # Parameters
+    nu = 1.443e-5                    # (m^2/s) kinematic viscosity
+    Re = 8800                        # Reynolds number V*d/nu
+    # R = 6.35e-3/2                    # (m) radius of sphere
+    # magVinf = 20                     # (m/s) freestream velocity
+    R = 1
+    magVinf = Re*nu/(2*R)
+
+    P_min = [0.15, 0, 0]             # Lower bounds of (theta, phi, dummy)
+    P_max = [pi-P_min[1], 2*pi, 0]   # Upper bounds of (theta, phi, dummy)
+    NDIVS = panel_scale*[5, 10, 0]            # Number of divisions (cells) of (theta, phi, dummy)
+    loop_dim = 2                     # Coordinate to loop (1==theta)
+
+    # Generates parametric (theta, phi) grid
+    grid = pnl.gt.Grid(P_min, P_max, NDIVS, loop_dim)
+
+    # Transforms the grid into a spherical cartesian space
+    my_transform(X) = pnl.gt.spherical3D(vcat(R, X[1:2]))
+    pnl.gt.transform!(grid, my_transform)
+
+    # Splits the quad cells into triangular cells
+    dimsplit = 1
+    triang_grid = pnl.gt.GridTriangleSurface(grid, dimsplit)
+
+    # Adds normal vector field
+    body_temp = pnl.NonLiftingBody(triang_grid, false)
+
+    pnl.gt.add_field(triang_grid, "normal", "vector",[pnl.gt.get_normal(triang_grid, i) for i in 1:body_temp.ncells], "cell")
+    pnl.gt.add_field(triang_grid, "cellindex", "scalar", [i for i in 1:body_temp.ncells], "cell")
+    pnl.gt.add_field(triang_grid, "nodeindex", "scalar",[i for i in 1:body_temp.nnodes], "node")
+
+    Vinf = magVinf*[1.0,0,0]
+
+    if benchmarking # run benchmarking and ignore vtks
+        times = []
+        memory = []
+        if minimum
+
+            t = @benchmark implicit_benchmark_function($pnl.native, $triang_grid, $Vinf)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.gmres_bulky, $triang_grid, $Vinf)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.gmres_agile, $triang_grid, $Vinf)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.cg, $triang_grid, $Vinf)
+            push!(times, minimum(t).time)
+            push!(memory, minimum(t).memory)
+
+        else #median time instead
+
+            t = @benchmark implicit_benchmark_function($pnl.native, $triang_grid, $Vinf)
+            push!(times, median(t).time)
+            push!(memory, median(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.gmres_bulky, $triang_grid, $Vinf)
+            push!(times, median(t).time)
+            push!(memory, median(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.gmres_agile, $triang_grid, $Vinf)
+            push!(times, median(t).time)
+            push!(memory, median(t).memory)
+
+            t = @benchmark implicit_benchmark_function($pnl.cg, $triang_grid, $Vinf)
+            push!(times, median(t).time)
+            push!(memory, median(t).memory)
+
+        end
+        return times, memory
+
+    else # solve and run paraview
+        pnl.solve(body, Vinfs; algorithm=algorithm, verbose=false)
+
+        # Adds surface velocity field
+        CPs = [pnl.get_controlpoint(body, i) for i in 1:body.ncells]
+        Vsurf = [Vinf for i in 1:size(CPs,1)]
+        for i in 1:body.ncells
+            pnodes = gt.get_cellnodes(body.grid, i)
+            pnl.PanelSolver.Vconstant_source(pnodes, pnl.get_fieldval(body, "sigma", i), CPs, Vsurf)
+        end
+        point_data = [Dict("field_name"=>"V", "field_type"=>"vector", "field_data"=>Vsurf)]
+        pnl.gt.add_field(body.grid, "V", "vector", Vsurf, "cell")
+
+        # Creates a fluid domain grid
+        fdom = gt.Grid(-3*R*ones(3), 3*R*ones(3), 2*[10,10,10])
+        targets = [gt.get_node(fdom, i) for i in 1:fdom.nnodes]
+        V = [Vinf for i in 1:fdom.nnodes]
+        for i in 1:body.ncells
+            pnodes = gt.get_cellnodes(body.grid, i)
+            pnl.PanelSolver.Vconstant_source(pnodes, pnl.get_fieldval(body, "sigma", i), targets, V)
+        end
+
+        gt.add_field(fdom, "V", "vector", V, "node")
+
+        # Saves vtk and calls paraview
+        pnl.save(body, file_name; path=save_path)
+        gt.save(fdom, file_name*"_fdom"; path=save_path)
+        gt.generateVTK(file_name*"_CPs", CPs; point_data=point_data, path=save_path)
+        strn = "$(joinpath(save_path, file_name)).vtk;$(file_name)_fdom.vtk;$(file_name)_CPs.vtk"
+        run(`paraview --data=$strn`)
+    end
+end
+
+function implicit_benchmark_function(algorithm, triang_grid, Vinf)
+
+    # Creates non lifting body
+    
+    body = algorithm == pnl.gmres_agile ? pnl.NonLiftingBody(triang_grid, false) : pnl.NonLiftingBody(triang_grid, true)
+
+    # Freestream at every control point
+    Vinfs = [Vinf for i in 1:body.ncells]
+
+    if algorithm==pnl.native
+        pnl.solve(body, Vinfs; algorithm=pnl.native, verbose=false)
+    elseif algorithm==pnl.gmres_bulky
+        pnl.solve(body, Vinfs; algorithm=pnl.gmres_bulky, verbose=false)
+    elseif algorithm==pnl.gmres_agile
+        pnl.solve(body, Vinfs; algorithm=pnl.gmres_agile, verbose=false)
+    elseif algorithm==pnl.cg
+        pnl.solve(body, Vinfs; algorithm=pnl.cg, verbose=false)
     end
 end
 
@@ -240,4 +377,68 @@ function panel_sweep(;minimum=false)
     xlabel("Number of panels")
     ylabel("Memory in benchmarking [Mb]")
     legend()
+end
+
+function panel_sweep2(;minimum=false)
+
+    scales = vcat(6, 7, 20)
+    # scales = 1:5
+    numpanels = 5*10*scales .^ 2 # [50; 200; 450; 800; 1250; 1800; 2450; 3200; 4050; 5000; etc.]
+    numalgorithms = 4 # change to 3 if conjugate gradient is implemented
+
+    times = Array{Float64}(undef, length(scales), numalgorithms)
+    memory = Array{Float64}(undef, length(scales), numalgorithms)
+    for (i, scale) in enumerate(scales)
+        println("$(numpanels[i]) panels:")
+        times[i, :], memory[i,:] = benchmarking_sphere2(panel_scale=scale, minimum=minimum)
+    end
+
+    # Plot results - time and memory
+    figure()
+    plot(numpanels, times[:,1]*1e-9, label="Native solver")
+    plot(numpanels, times[:,2]*1e-9, label="Explicit GMRES")
+    plot(numpanels, times[:,3]*1e-9, label="Implicit GMRES")
+    plot(numpanels, times[:,4]*1e-9, label="Conjugate gradient")
+    xlabel("Number of panels")
+    if minimum
+        ylabel("Minimum time in benchmarking [ms]")
+    else
+        ylabel("Median time in benchmarking [ms]")
+    end
+    legend()
+
+    figure()
+    plot(numpanels, memory[:,1] * 1e-6, label="Native solver")
+    plot(numpanels, memory[:,2] * 1e-6, label="Explicit GMRES")
+    plot(numpanels, memory[:,3] * 1e-6, label="Implicit GMRES")
+    plot(numpanels, memory[:,4] * 1e-6, label="Conjugate gradient")
+    xlabel("Number of panels")
+    ylabel("Memory in benchmarking [Mb]")
+    legend()
+
+    figure()
+    plot(numpanels, times[:,1]*1e-9, label="Native solver")
+    plot(numpanels, times[:,2]*1e-9, label="Explicit GMRES")
+    plot(numpanels, times[:,3]*1e-9, label="Implicit GMRES")
+    plot(numpanels, times[:,4]*1e-9, label="Conjugate gradient")
+    yscale("log")
+    xlabel("Number of panels")
+    if minimum
+        ylabel("Minimum time in benchmarking [ms]")
+    else
+        ylabel("Median time in benchmarking [ms]")
+    end
+    legend()
+
+    figure()
+    plot(numpanels, memory[:,1] * 1e-6, label="Native solver")
+    plot(numpanels, memory[:,2] * 1e-6, label="Explicit GMRES")
+    plot(numpanels, memory[:,3] * 1e-6, label="Implicit GMRES")
+    plot(numpanels, memory[:,4] * 1e-6, label="Conjugate gradient")
+    yscale("log")
+    xlabel("Number of panels")
+    ylabel("Memory in benchmarking [Mb]")
+    legend()
+
+    return numpanels, times, memory
 end

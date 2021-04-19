@@ -47,7 +47,7 @@ struct NonLiftingBody <: AbstractBody
   O::Array{T2,1} where {T2<:RType}          # Position of CS of original grid
 
   # Internal variables
-  _G::Array{T3,2} where {T3<:RType}         # Geometric solution matrix
+  _G::Union{Nothing, Array{T3,2}} where {T3<:RType}         # Geometric solution matrix
   _nodes::Array{T4,2} where {T4<:RType}
   _panels::Array{Array{Int64,1},1}
   _CPs::Array{Array{T5,1},1} where {T5<:RType}
@@ -68,6 +68,32 @@ struct NonLiftingBody <: AbstractBody
                     Oaxis, O,
                   _G, _nodes, _panels, _CPs, _normals
          )
+end
+
+"""
+Arguments:
+
+* grid::gt.GridTriangleSurface
+* constructG::Bool
+
+If `contructG == false`, omits explicit calculation of the `_G` matrix in favor of agile memory allocation. For use with the `gmres_agile` solver.
+"""
+function NonLiftingBody(grid, constructG::Bool)
+    nnodes=grid.nnodes
+    ncells=grid.ncells
+    fields=Array{String,1}()
+    Oaxis=Array(1.0I, 3, 3)
+    O=zeros(3)
+    _G = constructG ? _calc_Gsource(grid) : nothing
+    _nodes=grid.orggrid.nodes          # Nodes
+    _panels=[gt.get_cell(grid, i) for i in 1:grid.ncells] # Panels
+    _CPs=[_get_controlpoint(grid, i) for i in 1:grid.ncells] # CPs
+    _normals=[gt.get_normal(grid, i) for i in 1:grid.ncells] # Normals
+    return NonLiftingBody(grid,
+    nnodes, ncells,
+      fields,
+      Oaxis, O,
+    _G, _nodes, _panels, _CPs, _normals)
 end
 
 "Function gets the influence on the ith control point of the jth panel of unit strength"

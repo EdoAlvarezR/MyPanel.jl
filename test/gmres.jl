@@ -70,7 +70,7 @@ function benchmarking_sphere(;
     triang_grid = pnl.gt.GridTriangleSurface(grid, dimsplit)
 
     # Creates non lifting body
-    body = pnl.NonLiftingBody(triang_grid)
+    body = algorithm == pnl.gmres_agile ? pnl.NonLiftingBody(triang_grid, false) : pnl.NonLiftingBody(triang_grid, true)
 
     # Adds normal vector field
 

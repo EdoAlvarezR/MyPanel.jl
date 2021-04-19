@@ -30,15 +30,10 @@ ARGUMENTS:
 `benchmarking::Bool` - either runs benchmarking if set to true,
     or if set to false runs the example and pulls up the
     visualization in Paraview.
-<<<<<<< HEAD
-`algorithm::String` - for now, either pnl.native or pnl.gmres
-    will work.
-=======
 `algorithm::String`:
         - "all" runs all algorithms (currently native solve and gmres)
         - "native" runs native linear solve
         - "gmres" runs with GMRES
->>>>>>> 7f80c41c97ac5ff8c79f91f14c5974db7a6d8db8
 
 Note: The benchmarking macro outputs a lot of useful information
     including min/max/median time and estimated memory used, but only if the
@@ -49,17 +44,11 @@ Note: The benchmarking macro outputs a lot of useful information
     just hardcode the function to run both; only the latter will show
     up in the REPL.
 """
-<<<<<<< HEAD
-function benchmarking_sphere(;
-                            benchmarking=true,
-                            algorithm=pnl.gmres_bulky)
-=======
 function benchmarking_sphere(;
                             benchmarking=true,
                             algorithm="all",
                             panel_scale=3,
                             minimum=false)
->>>>>>> 7f80c41c97ac5ff8c79f91f14c5974db7a6d8db8
 
     # Parameters
     nu = 1.443e-5                    # (m^2/s) kinematic viscosity
